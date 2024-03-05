@@ -1,0 +1,130 @@
+import socket
+import psutil
+from scapy.all import sniff, TCP, IP, UDP
+from datetime import datetime
+
+def scan_ports(target, start_port, end_port):
+    print(f"Scanning target {target} for open ports...\n")
+
+    open_ports = []
+
+    for port in range(start_port, end_port + 1):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex((target, port))
+        if result == 0:
+            open_ports.append(port)
+            print(f"Port {port}: Open")
+        else:
+            print(f"Port {port}: Closed")
+        sock.close()
+
+    return open_ports
+
+def get_open_interfaces():
+    open_interfaces = []
+
+    for interface, addrs in psutil.net_if_addrs().items():
+        for addr in addrs:
+            if addr.family == socket.AF_INET:
+                open_interfaces.append(interface)
+                break
+
+    return open_interfaces
+
+def display_interfaces_with_index():
+    interfaces = get_open_interfaces()
+
+    if interfaces:
+        print("Available Interfaces:")
+        for i, interface in enumerate(interfaces, start=1):
+            print(f"{i}. {interface}")
+        return interfaces
+    else:
+        print("No open interfaces found.")
+        return None
+
+def close_ports(open_ports):
+    user_response = input("Do you want to close the open ports? (yes/no): ").lower()
+
+    if user_response == 'yes':
+        for port in open_ports:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            sock.connect_ex(('localhost', port))
+            sock.close()
+            print(f"Port {port}: Closed")
+        print("Open ports closed.")
+    else:
+        print("No open ports were closed.")
+
+def packet_handler(pkt):
+    timestamp = datetime.now().strftime('%m/%d/%y %H:%M:%S')
+    print(f"\nPacket Timestamp: {timestamp}")
+    print("Packet Details:")
+    print(pkt.show(dump=True))
+
+def main():
+    user_choice = input("Choose operation (1 for port scanning, 2 for packet sniffing): ")
+
+    if user_choice == '1':
+        target_ip = input("Enter target IP address: ")
+        start_port = int(input("Enter start port: "))
+        end_port = int(input("Enter end port: "))
+
+        open_ports = scan_ports(target_ip, start_port, end_port)
+
+        if open_ports:
+            print(f"\nOpen ports on {target_ip}: {open_ports}")
+            close_ports(open_ports)
+
+            # Finding open interfaces before initiating packet sniffing
+            open_interfaces = display_interfaces_with_index()
+
+            if open_interfaces:
+                user_sniff_choice = input("Do you want to sniff on an interface? (yes/no): ").lower()
+                if user_sniff_choice == 'yes':
+                    # Prompting the user to enter the index number of the desired interface
+                    selected_index = int(input("Enter the index number of the interface to sniff: "))
+                    if 1 <= selected_index <= len(open_interfaces):
+                        selected_interface = open_interfaces[selected_index - 1]
+                        print(f"Initiating packet sniffing on interface {selected_interface}...\n")
+                        sniff(iface=selected_interface, prn=packet_handler, count=50)
+                    else:
+                        print("Invalid index number. Exiting.")
+                else:
+                    print("Exiting.")
+            else:
+                print("No open interfaces found. Exiting.")
+        else:
+            print("No open ports found. Exiting.")
+
+    elif user_choice == '2':
+        print("Finding open interfaces for packet sniffing...\n")
+
+        # Finding open interfaces before initiating packet sniffing
+        open_interfaces = display_interfaces_with_index()
+
+        if open_interfaces:
+            user_sniff_choice = input("Do you want to sniff on an interface? (yes/no): ").lower()
+            if user_sniff_choice == 'yes':
+                # Prompting the user to enter the index number of the desired interface
+                selected_index = int(input("Enter the index number of the interface to sniff: "))
+                if 1 <= selected_index <= len(open_interfaces):
+                    selected_interface = open_interfaces[selected_index - 1]
+                    print(f"Initiating packet sniffing on interface {selected_interface}...\n")
+                    sniff(iface=selected_interface, prn=packet_handler, count=50)
+                else:
+                    print("Invalid index number. Exiting.")
+            else:
+                print("Exiting.")
+        else:
+            print("No open interfaces found. Exiting.")
+
+    else:
+        print("Invalid choice. Exiting.")
+
+if __name__ == "__main__":
+    main()
+
+
